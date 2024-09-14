@@ -1,0 +1,113 @@
+# Price model evaluation
+# Model in evaluation mode
+price_model.eval()
+with torch.no_grad():
+    test_sequences = x_test_price.to(price_model.fc.weight.device)
+    test_labels = y_test_price.to(price_model.fc.weight.device)
+    test_outputs = price_model(test_sequences)
+    test_loss = criterion(test_outputs, test_labels)
+    print(f'Test Loss: {test_loss.item():.4f}')
+
+
+# Make predictions
+predicted = test_outputs.cpu().numpy()
+actual = y_test_price.cpu().numpy()
+
+# Inverse transform the predicted and actual values to original scale
+predicted = scaler.inverse_transform(predicted)
+actual = scaler.inverse_transform(actual)
+
+# Print predicted vs actual
+mse = mean_squared_error(actual, predicted)
+mae = mean_absolute_error(actual, predicted)
+rmse = np.sqrt(mse)
+
+print(f'Mean Squared Error: {mse}')
+print(f'Mean Absolute Error: {mae}')
+print(f'Root Mean Squared Error: {rmse}')
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(14, 7))
+plt.plot(actual, color='red', label='Actual Prices')
+plt.plot(predicted, color='black', linestyle='--', label='Predicted Prices')
+plt.title('Price Model: Actual vs. Predicted Bitcoin Prices')
+plt.xlabel('Time')
+plt.ylabel('Price')
+plt.legend()
+plt.show()
+
+# Blockchain Model Evaluation
+# Set model to evaluation mode
+blockchain_model.eval()
+with torch.no_grad():
+    test_sequences = x_test_blockchain.to(blockchain_model.fc.weight.device)
+    test_labels = y_test_blockchain.to(blockchain_model.fc.weight.device)
+    test_outputs = blockchain_model(test_sequences)
+    test_loss = criterion(test_outputs, test_labels)
+    print(f'Test Loss: {test_loss.item():.4f}')
+
+# Make predictions
+predicted = test_outputs.cpu().numpy()
+actual = y_test_blockchain.cpu().numpy()
+
+# Inverse transform the predicted and actual values to original scale
+predicted = scaler.inverse_transform(predicted)
+actual = scaler.inverse_transform(actual)
+
+# Print predicted vs actual
+mse = mean_squared_error(actual, predicted)
+mae = mean_absolute_error(actual, predicted)
+rmse = np.sqrt(mse)
+
+print(f'Mean Squared Error: {mse}')
+print(f'Mean Absolute Error: {mae}')
+print(f'Root Mean Squared Error: {rmse}')
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(14, 7))
+plt.plot(actual, color='red', label='Actual Prices')
+plt.plot(predicted, color='black', linestyle='--', label='Predicted Prices')
+plt.title('Blockchain Model: Actual vs. Predicted Bitcoin Prices')
+plt.xlabel('Time')
+plt.ylabel('Price')
+plt.legend()
+plt.show()
+
+# Combined model evaluation
+# Set model to evaluation mode
+combined_model.eval()
+with torch.no_grad():
+    test_sequences = x_test_combined.to(combined_model.fc.weight.device)
+    test_labels = y_test_combined.to(combined_model.fc.weight.device)
+    test_outputs = combined_model(test_sequences)
+    test_loss = criterion(test_outputs, test_labels)
+    print(f'Test Loss: {test_loss.item():.4f}')
+
+# Make predictions
+predicted = test_outputs.cpu().numpy()
+actual = y_test_combined.cpu().numpy()
+
+# Inverse transform the predicted and actual values to original scale
+predicted = scaler.inverse_transform(predicted)
+actual = scaler.inverse_transform(actual)
+
+# Print predicted vs actual
+mse = mean_squared_error(actual, predicted)
+mae = mean_absolute_error(actual, predicted)
+rmse = np.sqrt(mse)
+
+print(f'Mean Squared Error: {mse}')
+print(f'Mean Absolute Error: {mae}')
+print(f'Root Mean Squared Error: {rmse}')
+
+import matplotlib.pyplot as plt
+plt.figure(figsize=(14, 7))
+plt.plot(actual, color='red', label='Actual Prices')
+plt.plot(predicted, color='black', linestyle='--', label='Predicted Prices')
+plt.title('Combined Model: Actual vs. Predicted Bitcoin Prices')
+plt.xlabel('Time')
+plt.ylabel('Price')
+plt.legend()
+plt.show()
