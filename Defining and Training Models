@@ -1,0 +1,179 @@
+# Define model
+class LSTMModel(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers, output_size):
+        super(LSTMModel, self).__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, x):
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+        c0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size).to(x.device)
+
+        out, _ = self.lstm(x, (h0, c0))
+        out = self.fc(out[:, -1, :])
+        return out
+
+# Define loss function
+criterion = nn.MSELoss()
+
+# Price Model
+# Prepare price data
+scaler = MinMaxScaler(feature_range=(0, 1))
+scaled_prices = scaler.fit_transform(prices_df)
+
+def create_sequences(data, seq_length):
+    xs = []
+    ys = []
+    for i in range(len(data) - seq_length):
+        x = data[i:(i+seq_length)]
+        y = data[i+seq_length]  # Predicting 'price' column
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
+
+seq_length = 3
+x_price, y_price = create_sequences(scaled_prices, seq_length)
+
+split_ratio = 0.8
+split_index = int(len(x_price) * split_ratio)
+
+# Split in chronological order
+x_train_price, x_test_price = x_price[:split_index], x_price[split_index:]
+y_train_price, y_test_price = y_price[:split_index], y_price[split_index:]
+
+# Create PyTorch tensors
+x_train_price = torch.from_numpy(x_train_price).float()
+y_train_price = torch.from_numpy(y_train_price).float().view(-1, 1)
+x_test_price = torch.from_numpy(x_test_price).float()
+y_test_price = torch.from_numpy(y_test_price).float().view(-1, 1)
+
+print('x_train:', x_train_price.shape)
+print('x_test:', x_test_price.shape)
+print('y_train:', y_train_price.shape)
+print('y_test:', y_test_price.shape)
+
+# Create train and test data sets and data loaders
+batch_size = 64
+price_train_dataset = TensorDataset(x_train_price, y_train_price)
+price_train_loader = DataLoader(price_train_dataset, batch_size=batch_size, shuffle=True)
+price_test_dataset = TensorDataset(x_test_price, y_test_price)
+price_test_loader = DataLoader(price_test_dataset, batch_size=batch_size, shuffle=True)
+
+# Train the price model
+price_model = LSTMModel(input_size=1, hidden_size=50, num_layers=2, output_size=1)
+price_optimizer = optim.Adam(price_model.parameters(), lr=0.001)
+
+num_epochs = 100
+for epoch in range(num_epochs):
+    for sequences, targets in price_train_loader:  # Loader specific to price data
+        outputs = price_model(sequences)
+        loss = criterion(outputs, targets)
+        price_optimizer.zero_grad()
+        loss.backward()
+        price_optimizer.step()
+
+    print(f'Price Model Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+
+# Blockchain Model
+# Prepare Blockchain data
+x_blockchain = combined_df[['transaction_count', 'fees_per_transaction']].values
+y_blockchain = combined_df['btc_price'].values
+
+# Create training and test sets
+split_ratio = 0.8
+split_index = int(len(x_blockchain) * split_ratio)
+
+# Split in chronological order
+x_train_blockchain, x_test_blockchain = x_blockchain[:split_index], x_blockchain[split_index:]
+y_train_blockchain, y_test_blockchain = y_blockchain[:split_index], y_blockchain[split_index:]
+
+sequence_length = 1
+x_train_blockchain = torch.from_numpy(x_train_blockchain).float().view(-1, sequence_length, 2)
+y_train_blockchain = torch.from_numpy(y_train_blockchain).float().view(-1, 1)
+x_test_blockchain = torch.from_numpy(x_test_blockchain).float().view(-1, sequence_length, 2)
+y_test_blockchain = torch.from_numpy(y_test_blockchain).float().view(-1, 1)
+
+print('x_train:', x_train_blockchain.shape)
+print('x_test:', x_test_blockchain.shape)
+print('y_train:', y_train_blockchain.shape)
+print('y_test:', y_test_blockchain.shape)
+
+blockchain_train_dataset = TensorDataset(x_train_blockchain, y_train_blockchain)
+train_loader = DataLoader(blockchain_train_dataset, batch_size=64, shuffle=True)
+blockchain_test_dataset = TensorDataset(x_test_blockchain, y_test_blockchain)
+test_loader = DataLoader(blockchain_test_dataset, batch_size=64)
+
+# Train blockchain model
+blockchain_model = LSTMModel(input_size=2, hidden_size=50, num_layers=2, output_size=1)
+blockchain_optimizer = optim.Adam(blockchain_model.parameters(), lr=0.001)
+
+num_epochs = 100
+for epoch in range(num_epochs):
+    for sequences, targets in train_loader:  # Loader specific to blockchain data
+        outputs = blockchain_model(sequences)
+        loss = criterion(outputs, targets)
+        blockchain_optimizer.zero_grad()
+        loss.backward()
+        blockchain_optimizer.step()
+
+    print(f'Blockchain Model Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+
+# Combined Model
+# Prepare combined data
+# Create sequences for LSTM
+def create_sequences(data, seq_length):
+    xs = []
+    ys = []
+    for i in range(len(data) - seq_length):
+        x = data[i:(i+seq_length)]
+        y = data[i+seq_length, 0]  # Predicting 'price' column
+        xs.append(x)
+        ys.append(y)
+    return np.array(xs), np.array(ys)
+
+seq_length = 3
+x_combined, y_combined = create_sequences(combined_df.values, seq_length)
+
+# Create training and test sets
+split_ratio = 0.8
+split_index = int(len(x_combined) * split_ratio)
+
+# Split in chronological order
+x_train_combined, x_test_combined = x_combined[:split_index], x_combined[split_index:]
+y_train_combined, y_test_combined = y_combined[:split_index], y_combined[split_index:]
+
+# Convert to PyTorch tensors
+x_train_combined = torch.from_numpy(x_train_combined).float()
+y_train_combined = torch.from_numpy(y_train_combined).float().view(-1, 1)
+x_test_combined = torch.from_numpy(x_test_combined).float()
+y_test_combined = torch.from_numpy(y_test_combined).float().view(-1, 1)
+
+print('x_train:', x_train_combined.shape)
+print('x_test:', x_test_combined.shape)
+print('y_train:', y_train_combined.shape)
+print('y_test:', y_test_combined.shape)
+
+# Create DataLoader for batch processing
+batch_size = 64
+combined_train_dataset = TensorDataset(x_train_combined, y_train_combined)
+combined_train_loader = DataLoader(combined_train_dataset, batch_size=batch_size, shuffle=True)
+combined_test_dataset = TensorDataset(x_test_combined, y_test_combined)
+combined_test_loader = DataLoader(combined_test_dataset, batch_size=batch_size, shuffle=True)
+
+# Train combined model
+combined_model = LSTMModel(input_size=x_train_combined.shape[2], hidden_size=50, num_layers=2, output_size=1)
+combined_optimizer = optim.Adam(combined_model.parameters(), lr=0.001)
+
+num_epochs = 100
+for epoch in range(num_epochs):
+    for sequences, targets in combined_train_loader:  # Loader specific to combined data
+        outputs = combined_model(sequences)
+        loss = criterion(outputs, targets)
+        combined_optimizer.zero_grad()
+        loss.backward()
+        combined_optimizer.step()
+
+    print(f'Combined Model Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+
