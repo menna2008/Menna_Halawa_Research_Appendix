@@ -1,0 +1,90 @@
+# Libraries
+import json
+import csv
+import pandas as pd
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from google.colab import drive
+import os
+import zipfile
+
+import requests
+import yfinance as yf
+from datetime import datetime, timedelta
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error, mean_absolute_error
+
+# Mounting Drive
+drive.mount('/content/drive')
+
+# Importing Data
+# Fetch price data
+prices_df = yf.download('BTC-USD', start="2010-01-01", end="2024-08-31", interval='1d')
+prices_df.reset_index(inplace=True)
+prices_df['Date'] = pd.to_datetime(prices_df['Date'])
+prices_df.set_index('Date', inplace=True)
+prices_df = prices_df[['Close']]
+prices_df.rename(columns={'Close': 'btc_price'}, inplace=True)
+prices_max_value = prices_df.max()
+price_min_value = prices_df.min()
+
+# Fetch transaction count data
+url = "https://api.blockchain.info/charts/n-transactions"
+response = requests.get(url, params={'timespan': 'all', 'format': 'json'})
+tx_count_data = response.json()
+tx_count_df = pd.DataFrame(tx_count_data['values'])
+tx_count_df.rename(columns={'x': 'timestamp', 'y': 'transaction_count'}, inplace=True)
+tx_count_df['timestamp'] = pd.to_datetime(tx_count_df['timestamp'], unit='s')
+tx_count_df.set_index('timestamp', inplace=True)
+
+# Fetch fees per transaction data
+with open('/content/drive/MyDrive/Research/fees-usd-per-transaction.json') as file:
+    fees_data = json.load(file)
+fees_data = fees_data['fees-usd-per-transaction']
+fees_df = pd.DataFrame(fees_data)
+fees_df.rename(columns={'x': 'timestamp', 'y': 'fees_per_transaction'}, inplace=True)
+fees_df['timestamp'] = pd.to_datetime(fees_df['timestamp'], unit='ms')
+fees_df.set_index('timestamp', inplace=True)
+
+# Merge all data
+combined_df = prices_df.join(tx_count_df).join(fees_df)
+
+# Drop rows with NaN values
+combined_df.dropna(inplace=True)
+print(combined_df)
+
+# Visualising Data
+# Plot graph
+combined_df.plot(figsize=(10, 6))
+plt.title('Combined Data', fontsize=16, pad=20)
+plt.show()
+
+# Create correlation matrix
+import seaborn as sns
+sns.heatmap(combined_df.corr(), annot=True, cmap='coolwarm')
+plt.title('Correlation Matrix', fontsize=16, pad=20)
+plt.show()
+
+#Normalizing Data
+# Normalise data
+scaler = MinMaxScaler(feature_range=(0,1))
+blockchain_to_normalise = ['transaction_count', 'fees_per_transaction']
+combined_df[blockchain_to_normalise] = scaler.fit_transform(combined_df[blockchain_to_normalise])
+combined_df['btc_price'] = scaler.fit_transform(combined_df[['btc_price']])
+
+# Visualise normalised data
+combined_df.plot(figsize=(10, 6))
+plt.title('Combined Data After Normalisation', fontsize=16, pad=20)
+plt.show()
+
+# Correlation matrix between normalised data
+import seaborn as sns
+sns.heatmap(combined_df.corr(), annot=True, cmap='coolwarm')
+plt.title('Correlation Matrix After Normalisation', fontsize=16, pad=20)
+plt.show()
